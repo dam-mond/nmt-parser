@@ -15,9 +15,10 @@ import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URISyntaxException;
-import java.net.URL;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
@@ -39,39 +40,39 @@ public class NmtParser implements Callable<Integer> {
     private boolean excludeHeap;
 
     @Override
-    public Integer call() throws URISyntaxException, IOException {
+    public Integer call() throws IOException {
         Pattern pattern = Pattern.compile("- (.*) \\(.* committed=(\\d*)KB");
-        URL resource = NmtParser.class.getClassLoader().getResource("NMT.zip");
+        Path filePath = Path.of(zipFile);
+        System.out.println("Filepath: " + zipFile);
+        if(!Files.exists(filePath)){
+            throw new IllegalArgumentException("File " + zipFile + "not found!");
+        }
+        URI zipUri = filePath.toUri();
         Map<Long, Map<String, String>> dateFileMap = new TreeMap<>();
-        if (resource == null) {
-            throw new IllegalArgumentException("file not found!");
-        } else {
-            File f = new File(resource.toURI());
-            System.out.println("File: " + f);
+        File f = new File(zipUri);
 
-            ZipFile zipFile = new ZipFile(f);
-            Enumeration<? extends ZipEntry> entries = zipFile.entries();
-            while(entries.hasMoreElements()){
-                ZipEntry entry = entries.nextElement();
-                if(!entry.getName().contains("__MACOSX") && entry.getName().contains(".diff")){
-                    long fileModifiedMillis = entry.getLastModifiedTime().toMillis();
-                    Map<String, String> valuesPerFile = new HashMap<>();
-                    try (InputStream in = zipFile.getInputStream(entry)) {
-                        String contents = IOUtils.toString(in, StandardCharsets.UTF_8);
-                        Matcher matcher = pattern.matcher(contents);
-                        while (matcher.find()) {
-                            String sectionName = matcher.group(1);
-                            String committedMemoryKB = matcher.group(2);
-                            if(sectionName != null && sectionName.trim().length() > 0){
-                                valuesPerFile.put(sectionName.trim(), committedMemoryKB);
-                            }
+        ZipFile zipFile = new ZipFile(f);
+        Enumeration<? extends ZipEntry> entries = zipFile.entries();
+        while(entries.hasMoreElements()){
+            ZipEntry entry = entries.nextElement();
+            if(!entry.getName().contains("__MACOSX") && entry.getName().contains("diff")){
+                long fileModifiedMillis = entry.getLastModifiedTime().toMillis();
+                Map<String, String> valuesPerFile = new HashMap<>();
+                try (InputStream in = zipFile.getInputStream(entry)) {
+                    String contents = IOUtils.toString(in, StandardCharsets.UTF_8);
+                    Matcher matcher = pattern.matcher(contents);
+                    while (matcher.find()) {
+                        String sectionName = matcher.group(1);
+                        String committedMemoryKB = matcher.group(2);
+                        if(sectionName != null && !sectionName.trim().isEmpty()){
+                            valuesPerFile.put(sectionName.trim(), committedMemoryKB);
                         }
                     }
-                    catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    dateFileMap.put(fileModifiedMillis, valuesPerFile);
                 }
+                catch (IOException e) {
+                    e.printStackTrace();
+                }
+                dateFileMap.put(fileModifiedMillis, valuesPerFile);
             }
         }
         System.out.println(dateFileMap);
