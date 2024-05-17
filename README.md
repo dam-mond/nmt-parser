@@ -16,3 +16,6 @@ java -jar nmt-parser-<VERSION>.jar --zipFile=<ZIP_FILE_PATH>
 ```
 java -jar nmt-parser-<VERSION>.jar --help
 ```
+
+The parser is compatible with .zip files with all the NMTs directly in it, with no subfolder structures. 
+Additionally, it's only compatible with diff NMT files, and they need to have the "diff" wording on the file name.
